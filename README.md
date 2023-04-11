@@ -22,7 +22,7 @@ Assets, メニューコマンド, GameObjects, 検索履歴を高速に検索で
 ```json
 {
   "dependencies": {
-    "net.room6.tsearch": "https://github.com/yourname/TSearch.git#x.y.z"
+    "net.room6.tsearch": "https://github.com/akagik/TSearch.git#x.y.z"
   }
 }
 ```
