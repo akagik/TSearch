@@ -1,0 +1,12 @@
+{
+  "name": "net.room6.tsearch",
+  "version":"0.1.0",
+  "displayName": "TSearch",
+  "description": "Ctrl(Cmd) + T : Search Quick Assets, Command, GameObjects in Hierarchy and History.",
+  "unity": "2021.3",
+  "author": {
+    "name": "Kohei Imatomi",
+    "email": "kohei.imatomi@gmail.com"
+  },
+  "hideInEditor": false
+}
