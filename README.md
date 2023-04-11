@@ -3,6 +3,7 @@
 TSearchは、Unityエディタ上でCmd (またはCtrl) + T ショートカットキーを使用して、
 Assets, メニューコマンド, GameObjects, 検索履歴を高速に検索できるコマンドパレット機能を追加するパッケージです。
 
+![TSearch Screenshot](./images/Animation.gif)
 ![TSearch Screenshot](./images/screenshot.png)
 
 ## 主な機能
