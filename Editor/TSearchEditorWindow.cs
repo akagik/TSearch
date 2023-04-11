@@ -451,27 +451,33 @@ namespace Room6.TSearch.Editor
                 filterWithoutExtension = Path.GetFileNameWithoutExtension(data.searchFilter);
                 filterExtension = Path.GetExtension(data.searchFilter);
                 hasExtension = filterExtension.Length > 0;
+                await Task.Delay(1, cancellationToken: token);
 
                 // メニューコマンドの検索
                 var menuCommands = data.allMenuCommands
                     .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
                 menuCommands = Filter(menuCommands);
+                await Task.Delay(1, cancellationToken: token);
 
                 // ヒエラルキーの検索
                 var hierarchys = await SearchHierarchyAsync(token);
+                await Task.Delay(1, cancellationToken: token);
 
                 var results = AssetDatabase.FindAssets("", new[] { "Assets" })
                     .Select(guid => new SearchResult(guid, ignoreCase));
                 results = Filter(results);
+                await Task.Delay(1, cancellationToken: token);
 
                 var menuCommandsList = menuCommands.ToList();
                 var resultList = results.ToArray();
                 var hierarchyList = hierarchys.ToArray();
+                await Task.Delay(1, cancellationToken: token);
 
                 var allResults = new List<SearchResult>();
                 allResults.AddRange(menuCommandsList);
                 allResults.AddRange(resultList);
                 allResults.AddRange(hierarchyList);
+                await Task.Delay(1, cancellationToken: token);
 
                 results = allResults
                     .OrderByDescending(x => x.priority);
