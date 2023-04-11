@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using Cysharp.Threading.Tasks;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -284,7 +284,7 @@ namespace Room6.TSearch.Editor
                 cancellationTokenSource = new CancellationTokenSource();
             }
 
-            SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
+            SearchAsyncWrapper(cancellationTokenSource.Token);
         }
 
         public void OnActiveMoved(bool isUp)
@@ -361,7 +361,7 @@ namespace Room6.TSearch.Editor
                 cancellationTokenSource?.Cancel();
                 cancellationTokenSource = new CancellationTokenSource();
 
-                SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
+                SearchAsyncWrapper(cancellationTokenSource.Token);
             }
         }
 
@@ -421,7 +421,7 @@ namespace Room6.TSearch.Editor
             EditorGUIUtility.PingObject(result.asset);
         }
 
-        public async UniTask SearchAsyncWrapper(CancellationToken cancellationToken)
+        public async Task SearchAsyncWrapper(CancellationToken cancellationToken)
         {
             try
             {
@@ -440,7 +440,7 @@ namespace Room6.TSearch.Editor
             EditorWindow.GetWindow<TSearchEditorWindow>("TSearch").Repaint();
         }
 
-        private async UniTask SearchAsync(CancellationToken token)
+        private async Task SearchAsync(CancellationToken token)
         {
             activeIndex = 0;
             activeResult = null;
@@ -456,25 +456,17 @@ namespace Room6.TSearch.Editor
                 var menuCommands = data.allMenuCommands
                     .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
                 menuCommands = Filter(menuCommands);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
 
                 // ヒエラルキーの検索
                 var hierarchys = await SearchHierarchyAsync(token);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
 
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
                 var results = AssetDatabase.FindAssets("", new[] { "Assets" })
                     .Select(guid => new SearchResult(guid, ignoreCase));
                 results = Filter(results);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
 
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
                 var menuCommandsList = menuCommands.ToList();
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
                 var resultList = results.ToArray();
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
                 var hierarchyList = hierarchys.ToArray();
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
 
                 var allResults = new List<SearchResult>();
                 allResults.AddRange(menuCommandsList);
@@ -490,7 +482,6 @@ namespace Room6.TSearch.Editor
                 //     return x;
                 // })
                 // .Where(x => x.asset != null);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
                 searchResults = results;
             }
             else
@@ -501,7 +492,7 @@ namespace Room6.TSearch.Editor
             OnTabChanged();
         }
 
-        private async UniTask<IEnumerable<SearchResult>> SearchHierarchyAsync(CancellationToken token)
+        private async Task<IEnumerable<SearchResult>> SearchHierarchyAsync(CancellationToken token)
         {
             IEnumerable<SearchResult> results;
             if (data.searchFilter.Length >= 2)
