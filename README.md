@@ -17,17 +17,30 @@ Assets, メニューコマンド, GameObjects, 検索履歴を高速に検索で
 ### PackageManagerを使用したインストール
 
 1. Unityプロジェクトの`Packages/manifest.json`ファイルを開きます。
-2. 以下のように依存関係にTSearchパッケージを追加してください。
+2. 以下のように依存関係にTSearchパッケージとUniTaskパッケージを追加してください。
 
 ```json
 {
   "dependencies": {
-    "net.room6.tsearch": "https://github.com/akagik/TSearch.git#x.y.z"
+    "net.room6.tsearch": "https://github.com/akagik/TSearch.git#x.y.z",
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
   }
 }
 ```
 
 注意: `x.y.z` はTSearchパッケージのバージョン番号です。適切なバージョン番号に置き換えてください。
+
+### UniTask依存なしのインストール
+
+TSearchはデフォルトでUniTaskに依存していますが、UniTaskを使用しない場合はno-unitaskブランチをインストールすることができます。
+
+```json
+{
+  "dependencies": {
+    "net.room6.tsearch": "https://github.com/akagik/TSearch.git#no-unitask"
+  }
+}
+```
 
 ## 使用方法
 
