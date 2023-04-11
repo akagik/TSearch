@@ -3,7 +3,7 @@ using UnityEditor;
 
 namespace Room6.TSearch.Editor
 {
-    public class RSearchData : ScriptableSingleton<RSearchData>
+    public class TSearchData : ScriptableSingleton<TSearchData>
     {
         public List<string>       allMenuCommands;
         public List<SearchResult> history = new();
@@ -14,7 +14,7 @@ namespace Room6.TSearch.Editor
         public void CacheAllMenuCommands()
         {
             allMenuCommands = new List<string>();
-            allMenuCommands.AddRange(RSearchUtils.GetAllMenuCommands());
+            allMenuCommands.AddRange(TSearchUtils.GetAllMenuCommands());
         }
     }
 }

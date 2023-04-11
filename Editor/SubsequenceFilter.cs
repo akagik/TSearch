@@ -18,7 +18,7 @@ namespace Room6.TSearch.Editor
             {
                 if (result.ignoreCase)
                 {
-                    if (RSearchUtils.AreCharsEqualIgnoreCase(searchFilter[i], name[j]))
+                    if (TSearchUtils.AreCharsEqualIgnoreCase(searchFilter[i], name[j]))
                     {
                         i++;
                     }

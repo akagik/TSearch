@@ -11,12 +11,12 @@ using Object = UnityEngine.Object;
 
 namespace Room6.TSearch.Editor
 {
-    public class RSearchEditorWindow : EditorWindow
+    public class TSearchEditorWindow : EditorWindow
     {
         public const float RowHeight    = 20;
         public const float SearchStartY = 83f;
 
-        private RSearchController controller = new();
+        private TSearchController controller = new();
         private Vector2           scrollPosition;
         private Vector2           scrollPositionHistory;
         private Rect              scrollViewRect;
@@ -24,10 +24,10 @@ namespace Room6.TSearch.Editor
         private GUIStyle searchFieldStyle;
         private GUIStyle searchResultStyle;
 
-        [MenuItem("Window/RSearch %T")]
+        [MenuItem("Window/TSearch %T")]
         public static void ShowWindow()
         {
-            GetWindow<RSearchEditorWindow>("RSearch");
+            GetWindow<TSearchEditorWindow>("TSearch");
         }
 
         private void OnEnable()
@@ -134,7 +134,7 @@ namespace Room6.TSearch.Editor
         {
             GUILayout.BeginHorizontal();
             GUILayout.Space(10);
-            controller.data.selectedTab = GUILayout.Toolbar(controller.data.selectedTab, RSearchController.TabNames,
+            controller.data.selectedTab = GUILayout.Toolbar(controller.data.selectedTab, TSearchController.TabNames,
                 GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
             GUILayout.EndHorizontal();
@@ -180,7 +180,7 @@ namespace Room6.TSearch.Editor
         {
             result.LoadAsset();
 
-            Texture icon = RSearchUtils.GetIconForType(result);
+            Texture icon = TSearchUtils.GetIconForType(result);
             GUIContent linkIcon = EditorGUIUtility.IconContent("d_Linked");
 
             GUILayout.BeginHorizontal();
@@ -252,7 +252,7 @@ namespace Room6.TSearch.Editor
     }
 
     [System.Serializable]
-    public class RSearchController
+    public class TSearchController
     {
         public static readonly string[] TabNames = { "All", "Assets", "Hierarchy", "MenuCommand", "History" };
 
@@ -267,7 +267,7 @@ namespace Room6.TSearch.Editor
 
         public CancellationTokenSource cancellationTokenSource;
 
-        public RSearchData data => RSearchData.instance;
+        public TSearchData data => TSearchData.instance;
 
         // 検索
         bool   ignoreCase;
@@ -437,7 +437,7 @@ namespace Room6.TSearch.Editor
                 cancellationTokenSource = null;
             }
 
-            EditorWindow.GetWindow<RSearchEditorWindow>("RSearch").Repaint();
+            EditorWindow.GetWindow<TSearchEditorWindow>("TSearch").Repaint();
         }
 
         private async UniTask SearchAsync(CancellationToken token)

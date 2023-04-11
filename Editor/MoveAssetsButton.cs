@@ -14,7 +14,7 @@ namespace Room6.TSearch.Editor
             this.result = result;
         }
 
-        public void OnGUI(RSearchController controller)
+        public void OnGUI(TSearchController controller)
         {
             var pathList = new System.Text.StringBuilder();
             var maxLength = 40;

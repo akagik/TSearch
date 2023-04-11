@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Room6.TSearch.Editor
 {
-    public static class RSearchUtils
+    public static class TSearchUtils
     {
         public static Texture GetIconForType(SearchResult result)
         {
