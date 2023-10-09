@@ -33,6 +33,8 @@ Assets, メニューコマンド, GameObjects, 検索履歴を高速に検索で
 
 ## インストール方法
 
+UPM を使って `https://github.com/akagik/TSearch.git` をパッケージに追加する。
+
 ### PackageManagerを使用したインストール
 
 1. Unityプロジェクトの`Packages/manifest.json`ファイルを開きます。
