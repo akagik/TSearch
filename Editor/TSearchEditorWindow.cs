@@ -254,7 +254,7 @@ namespace Room6.TSearch.Editor
     [System.Serializable]
     public class TSearchController
     {
-        public static readonly string[] TabNames = { "All", "Assets", "Hierarchy", "MenuCommand", "History" };
+        public static readonly string[] TabNames = { "All", "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
 
         public IEnumerable<SearchResult> searchResults;
         public List<SearchResult>        filteredResult = new();
@@ -461,8 +461,9 @@ namespace Room6.TSearch.Editor
                 // ヒエラルキーの検索
                 var hierarchys = await SearchHierarchyAsync(token);
                 await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-
+                var textInHierarchies = await CreateTextInHierarchyAsync(token);
                 await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
+                
                 var results = AssetDatabase.FindAssets("", new[] { "Assets" })
                     .Select(guid => new SearchResult(guid, ignoreCase));
                 results = Filter(results);
@@ -475,11 +476,14 @@ namespace Room6.TSearch.Editor
                 await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
                 var hierarchyList = hierarchys.ToArray();
                 await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
+                var textInHierarchyList = textInHierarchies.ToArray();
+                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
 
                 var allResults = new List<SearchResult>();
                 allResults.AddRange(menuCommandsList);
                 allResults.AddRange(resultList);
                 allResults.AddRange(hierarchyList);
+                allResults.AddRange(textInHierarchyList);
 
                 results = allResults
                     .OrderByDescending(x => x.priority);
@@ -517,6 +521,23 @@ namespace Room6.TSearch.Editor
 
             return results;
         }
+        private async UniTask<IEnumerable<SearchResult>> CreateTextInHierarchyAsync(CancellationToken token)
+        {
+            IEnumerable<SearchResult> results;
+            if (data.searchFilter.Length >= 2)
+            {
+                results = Object.FindObjectsOfType<GameObject>()
+                    .Select(go => SearchResult.CreateTextInHierarchyResult(go, ignoreCase));
+                results = Filter(results);
+            }
+            else
+            {
+                results = null;
+            }
+
+            return results;
+        }
+        
 
         private IEnumerable<SearchResult> Filter(IEnumerable<SearchResult> results)
         {
