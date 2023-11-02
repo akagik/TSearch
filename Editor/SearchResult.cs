@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -26,7 +29,9 @@ namespace Room6.TSearch.Editor
 
         public bool IsDirectory => resultType == ResultType.Assets && Directory.Exists(assetPath);
         
+        private static Dictionary<Type, Func<object, string>> type2TextStringMethodCache = new();
 
+        private static BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         public static SearchResult CreateCommandResult(string command, bool ignoreCase)
         {
             SearchResult result = new SearchResult(command, command, ResultType.MenuCommand);
@@ -43,6 +48,48 @@ namespace Room6.TSearch.Editor
             result.fileName = go.name;
             result.fileNameWithExt = go.name;
             result.asset = go;
+            return result;
+        }
+
+        public static SearchResult CreateTextInHierarchyResult(GameObject go, bool ignoreCase)
+        {
+            SearchResult result = new SearchResult(go.name, go.GetInstanceID().ToString(), ResultType.TextInHierarchy);
+            result.ignoreCase = ignoreCase;
+            result.asset = go;
+
+            StringBuilder sb = new();
+            foreach (var component in go.GetComponents<Component>())
+            {
+                var type = component.GetType();
+                if (!type2TextStringMethodCache.ContainsKey(type))
+                {
+                    if (type.GetField("m_Text", Flags) is { } f1)
+                    {
+                        type2TextStringMethodCache[type] = obj => f1.GetValue(obj) as string;
+                    }
+                    else if (type.GetField("m_text", Flags) is { } f2)
+                    {
+                        type2TextStringMethodCache[type] = obj => f2.GetValue(obj) as string;
+                    }
+                    else
+                    {
+                        type2TextStringMethodCache[type] = null;
+                    }
+                }
+
+                if (type2TextStringMethodCache[type] == null) continue;
+            
+                if (type2TextStringMethodCache[type].Invoke(component) is { } value)
+                {
+                    sb.Append(value);
+                    sb.Append(",");
+                }
+            }
+
+            string text = sb.ToString();
+            result.fileName = text;
+            result.fileNameWithExt = text;
+
             return result;
         }
 
@@ -112,7 +159,7 @@ namespace Room6.TSearch.Editor
             {
                 EditorApplication.ExecuteMenuItem(assetPath);
             }
-            else if (resultType == ResultType.Hierarchy)
+            else if (resultType is ResultType.Hierarchy or ResultType.TextInHierarchy )
             {
                 EditorGUIUtility.PingObject(asset);
                 Selection.activeGameObject = (GameObject)asset;

@@ -6,11 +6,12 @@ namespace Room6.TSearch.Editor
     [Flags]
     public enum ResultType
     {
-        Assets      = 1 << 0,
-        Hierarchy   = 1 << 1,
-        MenuCommand = 1 << 2,
-        History     = 1 << 3,
-        All         = Assets | MenuCommand,
+        Assets          = 1 << 0,
+        Hierarchy       = 1 << 1,
+        MenuCommand     = 1 << 2,
+        History         = 1 << 3,
+        TextInHierarchy = 1 << 4,
+        All             = Assets | MenuCommand,
     }
 
     public static class ResultTypeExtensions
