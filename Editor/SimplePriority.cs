@@ -10,6 +10,8 @@ namespace Room6.TSearch.Editor
             
             int i = 0;
             int j = 0;
+            int bonus = 0;
+            int score = 0;
 
             while (i < searchFilter.Length && j < name.Length)
             {
@@ -18,6 +20,12 @@ namespace Room6.TSearch.Editor
                     if (TSearchUtils.AreCharsEqualIgnoreCase(searchFilter[i], name[j]))
                     {
                         i++;
+                        score += bonus;
+                        bonus += 100;
+                    }
+                    else
+                    {
+                        bonus = 0;
                     }
                 }
                 else
@@ -25,13 +33,21 @@ namespace Room6.TSearch.Editor
                     if (searchFilter[i] == name[j])
                     {
                         i++;
+                        score += bonus;
+                        bonus += 100;
+                    }
+                    else
+                    {
+                        bonus = 0;
                     }
                 }
 
                 j++;
             }
 
-            return - Mathf.Abs(i - searchFilter.Length) - Mathf.Abs(name.Length - searchFilter.Length);
+            score -= Mathf.Abs(i - searchFilter.Length);
+            score -= Mathf.Abs(name.Length - searchFilter.Length);
+            return score;
         }
     }
 }

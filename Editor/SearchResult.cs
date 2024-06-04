@@ -60,6 +60,10 @@ namespace Room6.TSearch.Editor
             StringBuilder sb = new();
             foreach (var component in go.GetComponents<Component>())
             {
+                if (component == null)
+                {
+                    continue;
+                }
                 var type = component.GetType();
                 if (!type2TextStringMethodCache.ContainsKey(type))
                 {
