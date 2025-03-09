@@ -254,7 +254,8 @@ namespace Room6.TSearch.Editor
     public class TSearchController
     {
         public static readonly string[] TabNames =
-            { "All", "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
+            // { "All", "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
+            { "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
 
         public IEnumerable<SearchResult> searchResults;     // 全検索結果
         public List<SearchResult>        filteredResult = new(); // 表示用にフィルタされた結果
