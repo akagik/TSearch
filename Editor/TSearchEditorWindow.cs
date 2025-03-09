@@ -32,7 +32,6 @@ namespace Room6.TSearch.Editor
 
         private void OnEnable()
         {
-            
             controller.OnEnable();
         }
 
@@ -103,7 +102,7 @@ namespace Room6.TSearch.Editor
         private void DrawSearchField()
         {
             if (searchFieldStyle == null)
-            {
+        {
                 searchFieldStyle = new GUIStyle("SearchTextField");
                 searchFieldStyle.fixedHeight = 20;
             }
@@ -126,7 +125,7 @@ namespace Room6.TSearch.Editor
             GUILayout.EndHorizontal();
 
             controller.OnSearchChanged(newSearchFilter);
-        }
+            }
 
 
         // 検索タイプの切り替え用タブを描画
@@ -254,10 +253,11 @@ namespace Room6.TSearch.Editor
     [System.Serializable]
     public class TSearchController
     {
-        public static readonly string[] TabNames = { "All", "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
+        public static readonly string[] TabNames =
+            { "All", "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
 
-        public IEnumerable<SearchResult> searchResults;
-        public List<SearchResult>        filteredResult = new();
+        public IEnumerable<SearchResult> searchResults;     // 全検索結果
+        public List<SearchResult>        filteredResult = new(); // 表示用にフィルタされた結果
         public int                       totalLength;
         public Priority                  priorityCalculator  = new SimplePriority();
         public SearchFilter              searchResultFilter1 = new SimpleLengthFilter();
@@ -269,7 +269,7 @@ namespace Room6.TSearch.Editor
 
         public TSearchData data => TSearchData.instance;
 
-        // 検索
+        // 検索用
         bool   ignoreCase;
         string filterWithoutExtension;
         string filterExtension;
@@ -284,6 +284,7 @@ namespace Room6.TSearch.Editor
                 cancellationTokenSource = new CancellationTokenSource();
             }
 
+            // ウィンドウを開いたとき、あるいはエディタ再起動時に再検索したい場合は呼ぶ
             SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
         }
 
@@ -301,10 +302,8 @@ namespace Room6.TSearch.Editor
             activeIndex = (activeIndex + direction + filteredResult.Count) % filteredResult.Count;
             activeResult = filteredResult[activeIndex];
 
-            // if (activeResult.resultType == ResultType.Hierarchy)
-            {
-                EditorGUIUtility.PingObject(activeResult.asset);
-            }
+            // 必要に応じて Ping
+            EditorGUIUtility.PingObject(activeResult.asset);
         }
 
         public void ResetActive()
@@ -313,6 +312,9 @@ namespace Room6.TSearch.Editor
             activeResult = null;
         }
 
+        /// <summary>
+        /// タブを次へ/前へ切り替える
+        /// </summary>
         public void ChangeTabNext(int direction)
         {
             ResetActive();
@@ -321,28 +323,15 @@ namespace Room6.TSearch.Editor
             OnTabChanged();
         }
 
+        /// <summary>
+        /// タブが変更された時に呼ばれる
+        /// </summary>
         public void OnTabChanged()
         {
-            var filter = (ResultType)Enum.Parse(typeof(ResultType), TabNames[data.selectedTab]);
-
-            if (searchResults == null)
-            {
-                filteredResult.Clear();
-            }
-            else
-            {
-                if (filter == ResultType.History)
-                {
-                    totalLength = data.history.Count;
-                    filteredResult = data.history.Take(50).ToList();
-                }
-                else
-                {
-                    filteredResult = searchResults.Where(result => (filter & result.resultType) != 0).ToList();
-                    totalLength = filteredResult.Count;
-                    filteredResult = filteredResult.Take(50).ToList();
-                }
-            }
+            // タブが変わったので検索をやりなおす
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource = new CancellationTokenSource();
+            SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
         }
 
         public void ClearSearch()
@@ -360,7 +349,6 @@ namespace Room6.TSearch.Editor
                 data.searchFilter = newSearchFilter;
                 cancellationTokenSource?.Cancel();
                 cancellationTokenSource = new CancellationTokenSource();
-
                 SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
             }
         }
@@ -421,6 +409,9 @@ namespace Room6.TSearch.Editor
             EditorGUIUtility.PingObject(result.asset);
         }
 
+        /// <summary>
+        /// 非同期で検索を実行するためのラッパ
+        /// </summary>
         public async UniTask SearchAsyncWrapper(CancellationToken cancellationToken)
         {
             try
@@ -429,7 +420,7 @@ namespace Room6.TSearch.Editor
             }
             catch (OperationCanceledException)
             {
-                // Handle cancellation, if needed.
+                // キャンセルされた場合は何もしない
             }
 
             if (!cancellationToken.IsCancellationRequested)
@@ -437,124 +428,161 @@ namespace Room6.TSearch.Editor
                 cancellationTokenSource = null;
             }
 
+            // 検索完了後にウィンドウを Repaint
             EditorWindow.GetWindow<TSearchEditorWindow>("TSearch").Repaint();
         }
 
+        /// <summary>
+        /// 選択タブに応じて必要な検索を行う
+        /// </summary>
         private async UniTask SearchAsync(CancellationToken token)
         {
             activeIndex = 0;
             activeResult = null;
+            filteredResult.Clear();
 
-            if (data.searchFilter.Length >= 2)
+            string currentTabName = TabNames[data.selectedTab];
+
+            // フィルタ用の文字列が短すぎる場合は検索しない (2文字未満など)
+            if (data.searchFilter.Length < 2 && currentTabName != "History")
             {
-                ignoreCase = !data.searchFilter.Any(char.IsUpper);
-                filterWithoutExtension = Path.GetFileNameWithoutExtension(data.searchFilter);
-                filterExtension = Path.GetExtension(data.searchFilter);
-                hasExtension = filterExtension.Length > 0;
-
-                // メニューコマンドの検索
-                var menuCommands = data.allMenuCommands
-                    .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
-                menuCommands = Filter(menuCommands);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-
-                // ヒエラルキーの検索
-                var hierarchys = await SearchHierarchyAsync(token);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-                var textInHierarchies = await CreateTextInHierarchyAsync(token);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-                
-                var results = AssetDatabase.FindAssets("", new[] { "Assets" })
-                    .Select(guid => new SearchResult(guid, ignoreCase));
-                results = Filter(results);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-                var menuCommandsList = menuCommands.ToList();
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-                var resultList = results.ToArray();
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-                var hierarchyList = hierarchys.ToArray();
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-                var textInHierarchyList = textInHierarchies.ToArray();
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-
-                var allResults = new List<SearchResult>();
-                allResults.AddRange(menuCommandsList);
-                allResults.AddRange(resultList);
-                allResults.AddRange(hierarchyList);
-                allResults.AddRange(textInHierarchyList);
-
-                results = allResults
-                    .OrderByDescending(x => x.priority);
-                // .Take(50);
-                // .Select(x =>
-                // {
-                //     x.LoadAsset();
-                //     return x;
-                // })
-                // .Where(x => x.asset != null);
-                await UniTask.Delay(1, DelayType.Realtime, cancellationToken: token);
-                searchResults = results;
-            }
-            else
-            {
-                searchResults = null;
+                // ヒストリ以外のタブで検索ワードが短すぎる場合は何も表示しない
+                searchResults = Enumerable.Empty<SearchResult>();
+                totalLength = 0;
+                return;
             }
 
-            OnTabChanged();
+            ignoreCase          = !data.searchFilter.Any(char.IsUpper);
+            filterWithoutExtension = Path.GetFileNameWithoutExtension(data.searchFilter);
+            filterExtension     = Path.GetExtension(data.searchFilter);
+            hasExtension        = filterExtension.Length > 0;
+
+            // タブ別に検索結果を構築する
+            List<SearchResult> allResults = new List<SearchResult>();
+
+            switch (currentTabName)
+            {
+                case "All":
+                    // すべてを検索
+                    // 1) MenuCommands
+                    var menuCommands = data.allMenuCommands
+                        .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
+                    menuCommands = Filter(menuCommands);
+                    allResults.AddRange(menuCommands);
+                    await UniTask.Yield(token);
+
+                    // 2) Hierarchy
+                    var hierarchies = Object.FindObjectsOfType<GameObject>()
+                        .Select(go => SearchResult.CreateHierarchyResult(go, ignoreCase));
+                    hierarchies = Filter(hierarchies);
+                    allResults.AddRange(hierarchies);
+                    await UniTask.Yield(token);
+
+                    // 3) TextInHierarchy
+                    var textInHierarchies = Object.FindObjectsOfType<GameObject>()
+                        .Select(go => SearchResult.CreateTextInHierarchyResult(go, ignoreCase));
+                    textInHierarchies = Filter(textInHierarchies);
+                    allResults.AddRange(textInHierarchies);
+                    await UniTask.Yield(token);
+
+                    // 4) Assets
+                    var assets = AssetDatabase.FindAssets("", new[] { "Assets" })
+                        .Select(guid => new SearchResult(guid, ignoreCase));
+                    assets = Filter(assets);
+                    allResults.AddRange(assets);
+                    break;
+
+                case "MenuCommand":
+                    var menuOnly = data.allMenuCommands
+                        .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
+                    menuOnly = Filter(menuOnly);
+                    allResults.AddRange(menuOnly);
+                    break;
+
+                case "Hierarchy":
+                    var hierarchyOnly = Object.FindObjectsOfType<GameObject>()
+                        .Select(go => SearchResult.CreateHierarchyResult(go, ignoreCase));
+                    hierarchyOnly = Filter(hierarchyOnly);
+                    allResults.AddRange(hierarchyOnly);
+                    break;
+
+                case "TextInHierarchy":
+                    var textOnly = Object.FindObjectsOfType<GameObject>()
+                        .Select(go => SearchResult.CreateTextInHierarchyResult(go, ignoreCase));
+                    textOnly = Filter(textOnly);
+                    allResults.AddRange(textOnly);
+                    break;
+
+                case "Assets":
+                    var assetsOnly = AssetDatabase.FindAssets("", new[] { "Assets" })
+                        .Select(guid => new SearchResult(guid, ignoreCase));
+                    assetsOnly = Filter(assetsOnly);
+                    allResults.AddRange(assetsOnly);
+                    break;
+
+                case "History":
+                    // ヒストリをそのまま表示 (フィルタは不要なら省略も可)
+                    // 今回は例として、ヒストリもフィルタする場合は下記のように
+                    // フィルタしてもいいし、しなくても良い
+                    var hist = data.history
+                        .Where(x => x != null && FilterSingle(x))
+                        .ToList();
+                    totalLength = hist.Count;
+                    // 50件に制限するとき
+                    filteredResult = hist.Take(50).ToList();
+                    searchResults = filteredResult;
+                    return;
+            }
+
+            // 検索結果を優先度順に並べる
+            var sorted = allResults
+                .OrderByDescending(x => x.priority);
+
+            // まとめて確定
+            searchResults = sorted;
+
+            // 表示用フィルタリング
+            var list = searchResults.ToList();
+            totalLength = list.Count;
+
+            // とりあえず先頭 50 件を表示
+            filteredResult = list.Take(50).ToList();
         }
 
-        private async UniTask<IEnumerable<SearchResult>> SearchHierarchyAsync(CancellationToken token)
-        {
-            IEnumerable<SearchResult> results;
-            if (data.searchFilter.Length >= 2)
-            {
-                results = Object.FindObjectsOfType<GameObject>()
-                    .Select(go => SearchResult.CreateHierarchyResult(go, ignoreCase));
-                results = Filter(results);
-            }
-            else
-            {
-                results = null;
-            }
-
-            return results;
-        }
-        private async UniTask<IEnumerable<SearchResult>> CreateTextInHierarchyAsync(CancellationToken token)
-        {
-            IEnumerable<SearchResult> results;
-            if (data.searchFilter.Length >= 2)
-            {
-                results = Object.FindObjectsOfType<GameObject>()
-                    .Select(go => SearchResult.CreateTextInHierarchyResult(go, ignoreCase));
-                results = Filter(results);
-            }
-            else
-            {
-                results = null;
-            }
-
-            return results;
-        }
-        
-
+        /// <summary>
+        /// 検索結果フィルタ
+        /// </summary>
         private IEnumerable<SearchResult> Filter(IEnumerable<SearchResult> results)
         {
-            if (data.searchFilter.Length >= 2)
-            {
-                // メニューコマンドの検索
-                results = results.Where(x => searchResultFilter1.Filter(x, filterWithoutExtension));
-                results = results.Where(x => searchResultFilter2.Filter(x, filterWithoutExtension));
-                results = results.Where(x => !hasExtension || x.fileNameWithExt.EndsWith(filterExtension));
-                results = results.Select(x =>
+            // 必要に応じて検索条件を加える
+            // ここでは検索ワード (filterWithoutExtension) が含まれるかチェックする例
+            // かつ hasExtension が true の場合は拡張子マッチも行う
+
+            var filtered = results
+                .Where(x => searchResultFilter1.Filter(x, filterWithoutExtension))
+                .Where(x => searchResultFilter2.Filter(x, filterWithoutExtension))
+                .Where(x => !hasExtension || x.fileNameWithExt.EndsWith(filterExtension))
+                .Select(x =>
                 {
                     x.CalculatePriority(priorityCalculator, filterWithoutExtension);
                     return x;
                 });
-            }
 
-            return results;
+            return filtered;
+        }
+
+        /// <summary>
+        /// 単一の SearchResult に対するフィルタ(History 用など)
+        /// </summary>
+        private bool FilterSingle(SearchResult result)
+        {
+            if (data.searchFilter.Length < 2) return true; // フィルタしない
+
+            if (!searchResultFilter1.Filter(result, filterWithoutExtension)) return false;
+            if (!searchResultFilter2.Filter(result, filterWithoutExtension)) return false;
+            if (hasExtension && !result.fileNameWithExt.EndsWith(filterExtension)) return false;
+
+            return true;
         }
     }
 }
