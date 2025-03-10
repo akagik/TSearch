@@ -13,12 +13,12 @@ namespace Room6.TSearch.Editor
                 GUIContent linkIcon = EditorGUIUtility.IconContent("d__Popup");
                 return linkIcon.image;
             }
-            
+
             if (result.resultType == ResultType.Hierarchy)
             {
                 return EditorGUIUtility.ObjectContent(null, typeof(GameObject)).image;
             }
-            
+
             System.Type type = result.asset.GetType();
 
             if (type == typeof(GameObject))
@@ -56,7 +56,7 @@ namespace Room6.TSearch.Editor
             // i 文字目を取得し、大文字小文字を無視して比較
             return char.ToUpperInvariant(str1) == char.ToUpperInvariant(str2);
         }
-        
+
         public static List<string> GetAllMenuCommands()
         {
             List<string> outNames = new();
@@ -64,6 +64,38 @@ namespace Room6.TSearch.Editor
             MenuHelper.GetMenuItemDefaultShortcuts(outNames, outShortcuts);
 
             return outNames;
+        }
+
+        /// <summary>
+        /// 現在選択しているフォルダのパスを返す。
+        /// もしフォルダが一つも選択されていなければ "Assets" を返す。
+        /// </summary>
+        /// <returns>フォルダのパス配列</returns>
+        public static string GetSelectedFolderPathOrDefault()
+        {
+            // 選択中のオブジェクトの中から "DefaultAsset" (プロジェクト上のファイル/フォルダ) を絞り込む
+            var selectedObjects = Selection.GetFiltered<DefaultAsset>(SelectionMode.Assets);
+
+            var folderPaths = new List<string>();
+            foreach (var obj in selectedObjects)
+            {
+                // 選択したオブジェクトのパスを取得
+                var path = AssetDatabase.GetAssetPath(obj);
+
+                // フォルダかどうかをチェック
+                if (AssetDatabase.IsValidFolder(path))
+                {
+                    folderPaths.Add(path);
+                }
+            }
+
+            // 一つもフォルダが見つからなければ "Assets" を返す
+            if (folderPaths.Count == 0)
+            {
+                folderPaths.Add("Assets");
+            }
+
+            return folderPaths[0];
         }
     }
 }

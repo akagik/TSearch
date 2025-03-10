@@ -13,16 +13,12 @@ namespace Room6.TSearch.Editor
 {
     public class TSearchEditorWindow : EditorWindow
     {
-        public const float RowHeight    = 20;
+        public const float RowHeight = 20;
         public const float SearchStartY = 83f;
 
         private TSearchController controller = new();
-        private Vector2           scrollPosition;
-        private Vector2           scrollPositionHistory;
-        private Rect              scrollViewRect;
-
+        private Vector2 scrollPosition;
         private GUIStyle searchFieldStyle;
-        private GUIStyle searchResultStyle;
 
         [MenuItem("Window/TSearch %T")]
         public static void ShowWindow()
@@ -52,7 +48,6 @@ namespace Room6.TSearch.Editor
                     controller.activeIndex < controller.filteredResult.Count)
                 {
                     var result = controller.filteredResult[controller.activeIndex];
-
                     bool alt = Event.current.alt;
 
                     if (alt)
@@ -102,7 +97,7 @@ namespace Room6.TSearch.Editor
         private void DrawSearchField()
         {
             if (searchFieldStyle == null)
-        {
+            {
                 searchFieldStyle = new GUIStyle("SearchTextField");
                 searchFieldStyle.fixedHeight = 20;
             }
@@ -110,23 +105,32 @@ namespace Room6.TSearch.Editor
             GUILayout.Space(10);
             GUILayout.BeginHorizontal();
             GUILayout.Space(10);
+
             GUI.SetNextControlName("SearchField");
             EditorGUI.FocusTextInControl("SearchField");
 
-            string newSearchFilter = EditorGUILayout.TextField("", controller.data.searchFilter, searchFieldStyle,
-                GUILayout.ExpandWidth(true));
-
+            // ここでは TSearchData.instance.fullSearchFilter を直接編集
+            string newFullSearchFilter = EditorGUILayout.TextField(
+                TSearchData.instance.fullSearchFilter,
+                searchFieldStyle,
+                GUILayout.ExpandWidth(true)
+            );
 
             if (GUILayout.Button("Clear", GUILayout.Width(50)))
             {
                 controller.ClearSearch();
+                newFullSearchFilter = ""; // クリア
             }
 
             GUILayout.EndHorizontal();
 
-            controller.OnSearchChanged(newSearchFilter);
+            // 変更があればコントローラに通知
+            if (newFullSearchFilter != TSearchData.instance.fullSearchFilter)
+            {
+                TSearchData.instance.fullSearchFilter = newFullSearchFilter;
+                controller.OnFullSearchFilterChanged(newFullSearchFilter);
             }
-
+        }
 
         // 検索タイプの切り替え用タブを描画
         private void DrawTabs()
@@ -146,12 +150,6 @@ namespace Room6.TSearch.Editor
             if (controller.activeResult != null)
             {
                 float activeY = controller.activeIndex * RowHeight;
-
-                // if (activeY - scrollPosition.y + RowHeight > position.height - SearchStartY)
-                // {
-                //     float y = activeY - position.height + SearchStartY + RowHeight;
-                //     scrollPosition = new Vector2(scrollPosition.x, y);
-                // }
                 if (activeY - scrollPosition.y + RowHeight > position.height - SearchStartY)
                 {
                     float y = activeY - position.height + SearchStartY + RowHeight;
@@ -224,7 +222,7 @@ namespace Room6.TSearch.Editor
                 }
             }
 
-            // NOTE: これ置かないと高さがずれる.
+            // NOTE: これ置かないと高さがずれる
             var styleButton = new GUIStyle(GUIStyle.none)
             {
                 fixedWidth = 16,
@@ -240,7 +238,6 @@ namespace Room6.TSearch.Editor
             GUILayout.EndHorizontal();
         }
 
-
         private void CheckClose()
         {
             if (!docked)
@@ -254,15 +251,14 @@ namespace Room6.TSearch.Editor
     public class TSearchController
     {
         public static readonly string[] TabNames =
-            // { "All", "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
             { "Assets", "Hierarchy", "TextInHierarchy", "MenuCommand", "History" };
 
-        public IEnumerable<SearchResult> searchResults;     // 全検索結果
-        public List<SearchResult>        filteredResult = new(); // 表示用にフィルタされた結果
-        public int                       totalLength;
-        public Priority                  priorityCalculator  = new SimplePriority();
-        public SearchFilter              searchResultFilter1 = new SimpleLengthFilter();
-        public SearchFilter              searchResultFilter2 = new SubsequenceFilter();
+        public IEnumerable<SearchResult> searchResults; // 全検索結果
+        public List<SearchResult> filteredResult = new(); // 表示用にフィルタされた結果
+        public int totalLength;
+        public Priority priorityCalculator = new SimplePriority();
+        public SearchFilter searchResultFilter1 = new SimpleLengthFilter();
+        public SearchFilter searchResultFilter2 = new SubsequenceFilter();
         public SearchResult activeResult { get; protected set; }
         public int activeIndex { get; protected set; } = -1;
 
@@ -271,10 +267,10 @@ namespace Room6.TSearch.Editor
         public TSearchData data => TSearchData.instance;
 
         // 検索用
-        bool   ignoreCase;
+        bool ignoreCase;
         string filterWithoutExtension;
         string filterExtension;
-        bool   hasExtension;
+        bool hasExtension;
 
         public void OnEnable()
         {
@@ -285,7 +281,24 @@ namespace Room6.TSearch.Editor
                 cancellationTokenSource = new CancellationTokenSource();
             }
 
-            // ウィンドウを開いたとき、あるいはエディタ再起動時に再検索したい場合は呼ぶ
+            // ウィンドウを開いたタイミング(あるいは再オープン時)に、
+            string folder = TSearchUtils.GetSelectedFolderPathOrDefault();
+            if (string.IsNullOrEmpty(data.searchFilter) || !folder.Equals(data.searchDir))
+            {
+                if (!folder.Equals(data.searchDir))
+                {
+                    if (folder != "Assets")
+                    {
+                        data.fullSearchFilter = $"in:{folder} ";
+                    }
+                    else
+                    {
+                        data.fullSearchFilter = "";
+                    }
+                }
+            }
+
+            // ウィンドウを開いたときに自動検索
             SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
         }
 
@@ -320,7 +333,6 @@ namespace Room6.TSearch.Editor
         {
             ResetActive();
             data.selectedTab = (data.selectedTab + direction + TabNames.Length) % TabNames.Length;
-
             OnTabChanged();
         }
 
@@ -329,7 +341,6 @@ namespace Room6.TSearch.Editor
         /// </summary>
         public void OnTabChanged()
         {
-            // タブが変わったので検索をやりなおす
             cancellationTokenSource?.Cancel();
             cancellationTokenSource = new CancellationTokenSource();
             SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
@@ -389,18 +400,10 @@ namespace Room6.TSearch.Editor
             foreach (UnityEngine.Object selectedObject in selectedObjects)
             {
                 string selectedAssetPath = AssetDatabase.GetAssetPath(selectedObject);
-
-                if (string.IsNullOrEmpty(selectedAssetPath))
-                {
-                    continue;
-                }
+                if (string.IsNullOrEmpty(selectedAssetPath)) continue;
 
                 string selectedFolderPath = Path.GetDirectoryName(selectedAssetPath);
-
-                if (selectedFolderPath == folderPath)
-                {
-                    continue;
-                }
+                if (selectedFolderPath == folderPath) continue;
 
                 AssetDatabase.MoveAsset(selectedAssetPath,
                     Path.Combine(folderPath, Path.GetFileName(selectedAssetPath)));
@@ -434,6 +437,32 @@ namespace Room6.TSearch.Editor
         }
 
         /// <summary>
+        /// 選択しているフォルダがあれば、そのフォルダを返す。なければ "Assets" を返す。
+        /// </summary>
+        private string[] GetSelectedFolderPathsOrDefault()
+        {
+            var objs = Selection.GetFiltered<DefaultAsset>(SelectionMode.Assets);
+            var folderPaths = new List<string>();
+            foreach (var obj in objs)
+            {
+                var path = AssetDatabase.GetAssetPath(obj);
+                // フォルダかどうか
+                if (AssetDatabase.IsValidFolder(path))
+                {
+                    folderPaths.Add(path);
+                }
+            }
+
+            // もしフォルダ選択がなければルート("Assets")で検索
+            if (folderPaths.Count == 0)
+            {
+                folderPaths.Add("Assets");
+            }
+
+            return folderPaths.ToArray();
+        }
+
+        /// <summary>
         /// 選択タブに応じて必要な検索を行う
         /// </summary>
         private async UniTask SearchAsync(CancellationToken token)
@@ -443,56 +472,28 @@ namespace Room6.TSearch.Editor
             filteredResult.Clear();
 
             string currentTabName = TabNames[data.selectedTab];
+            (string folderPath, string keyword) = data.ParseFullSearchFilter();
 
-            // フィルタ用の文字列が短すぎる場合は検索しない (2文字未満など)
-            if (data.searchFilter.Length < 2 && currentTabName != "History")
+            // ここで、TSearchData.instance.searchFilter にキーワードのみを保存してもOK
+            data.searchFilter = keyword;
+
+            // フィルタ用の文字列が短すぎる場合 (必要に応じて制限)
+            if (keyword.Length < 2 && currentTabName != "History")
             {
-                // ヒストリ以外のタブで検索ワードが短すぎる場合は何も表示しない
                 searchResults = Enumerable.Empty<SearchResult>();
                 totalLength = 0;
                 return;
             }
 
-            ignoreCase          = !data.searchFilter.Any(char.IsUpper);
-            filterWithoutExtension = Path.GetFileNameWithoutExtension(data.searchFilter);
-            filterExtension     = Path.GetExtension(data.searchFilter);
-            hasExtension        = filterExtension.Length > 0;
+            ignoreCase = !keyword.Any(char.IsUpper);
+            filterWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(keyword);
+            filterExtension = System.IO.Path.GetExtension(keyword);
+            hasExtension = filterExtension.Length > 0;
 
-            // タブ別に検索結果を構築する
             List<SearchResult> allResults = new List<SearchResult>();
 
             switch (currentTabName)
             {
-                case "All":
-                    // すべてを検索
-                    // 1) MenuCommands
-                    var menuCommands = data.allMenuCommands
-                        .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
-                    menuCommands = Filter(menuCommands);
-                    allResults.AddRange(menuCommands);
-                    await UniTask.Yield(token);
-
-                    // 2) Hierarchy
-                    var hierarchies = Object.FindObjectsOfType<GameObject>()
-                        .Select(go => SearchResult.CreateHierarchyResult(go, ignoreCase));
-                    hierarchies = Filter(hierarchies);
-                    allResults.AddRange(hierarchies);
-                    await UniTask.Yield(token);
-
-                    // 3) TextInHierarchy
-                    var textInHierarchies = Object.FindObjectsOfType<GameObject>()
-                        .Select(go => SearchResult.CreateTextInHierarchyResult(go, ignoreCase));
-                    textInHierarchies = Filter(textInHierarchies);
-                    allResults.AddRange(textInHierarchies);
-                    await UniTask.Yield(token);
-
-                    // 4) Assets
-                    var assets = AssetDatabase.FindAssets("", new[] { "Assets" })
-                        .Select(guid => new SearchResult(guid, ignoreCase));
-                    assets = Filter(assets);
-                    allResults.AddRange(assets);
-                    break;
-
                 case "MenuCommand":
                     var menuOnly = data.allMenuCommands
                         .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
@@ -513,54 +514,41 @@ namespace Room6.TSearch.Editor
                     textOnly = Filter(textOnly);
                     allResults.AddRange(textOnly);
                     break;
-
                 case "Assets":
-                    var assetsOnly = AssetDatabase.FindAssets("", new[] { "Assets" })
+                    // フォルダ指定を考慮。もし folderPath が null や空ならデフォルトで "Assets"
+                    string[] targetFolders = new[] { string.IsNullOrEmpty(folderPath) ? "Assets" : folderPath };
+                    var assetsOnly = AssetDatabase.FindAssets("", targetFolders)
                         .Select(guid => new SearchResult(guid, ignoreCase));
                     assetsOnly = Filter(assetsOnly);
                     allResults.AddRange(assetsOnly);
                     break;
-
                 case "History":
-                    // ヒストリをそのまま表示 (フィルタは不要なら省略も可)
-                    // 今回は例として、ヒストリもフィルタする場合は下記のように
-                    // フィルタしてもいいし、しなくても良い
                     var hist = data.history
                         .Where(x => x != null && FilterSingle(x))
                         .ToList();
                     totalLength = hist.Count;
-                    // 50件に制限するとき
                     filteredResult = hist.Take(50).ToList();
                     searchResults = filteredResult;
                     return;
             }
 
             // 検索結果を優先度順に並べる
-            var sorted = allResults
-                .OrderByDescending(x => x.priority);
-
-            // まとめて確定
+            var sorted = allResults.OrderByDescending(x => x.priority);
             searchResults = sorted;
 
-            // 表示用フィルタリング
             var list = searchResults.ToList();
             totalLength = list.Count;
 
-            // とりあえず先頭 50 件を表示
+            // 先頭50件のみ表示
             filteredResult = list.Take(50).ToList();
         }
-
+        
         /// <summary>
         /// 検索結果フィルタ
         /// </summary>
         private IEnumerable<SearchResult> Filter(IEnumerable<SearchResult> results)
         {
-            // 必要に応じて検索条件を加える
-            // ここでは検索ワード (filterWithoutExtension) が含まれるかチェックする例
-            // かつ hasExtension が true の場合は拡張子マッチも行う
-
             var filtered = results
-                .Where(x => searchResultFilter1.Filter(x, filterWithoutExtension))
                 .Where(x => searchResultFilter2.Filter(x, filterWithoutExtension))
                 .Where(x => !hasExtension || x.fileNameWithExt.EndsWith(filterExtension))
                 .Select(x =>
@@ -584,6 +572,15 @@ namespace Room6.TSearch.Editor
             if (hasExtension && !result.fileNameWithExt.EndsWith(filterExtension)) return false;
 
             return true;
+        }
+
+        public void OnFullSearchFilterChanged(string newFullSearchFilter)
+        {
+            // ここで新たな fullSearchFilter を受け取り、必要があればキャンセルして再検索
+            data.fullSearchFilter = newFullSearchFilter;
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource = new CancellationTokenSource();
+            SearchAsyncWrapper(cancellationTokenSource.Token).Forget();
         }
     }
 }
