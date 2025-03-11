@@ -501,9 +501,10 @@ namespace Room6.TSearch.Editor
                     {
                         string path = data.GetAssetPathFromGuid(guid);
                         string fileNameWithExt = Path.GetFileName(path);
+                        string fileNameWithoutExt = Path.GetFileNameWithoutExtension(path);
 
                         bool passSubsequence = searchResultFilter2.Filter(
-                            fileNameWithExt,
+                            fileNameWithoutExt,
                             filterWithoutExtension,
                             ignoreCase
                         );
@@ -533,13 +534,16 @@ namespace Room6.TSearch.Editor
                     .ToList();
 
                 // 4. 並べ替え & 上位 50 件を抽出 (必要であればここも PLINQ で行ってもOK)
-                var sorted = allResults
+                totalLength = allResults.Count(); // 全件数を計算しておく
+                var top50 = allResults
+                    .AsParallel()
                     .OrderByDescending(static x => x.priority)
+                    .Take(50)
                     .ToList();
 
-                totalLength = sorted.Count;
-                filteredResult = sorted.Take(50).ToList();
-                searchResults = sorted;
+                totalLength = allResults.Count(); // 全件数を計算しておく
+                filteredResult = top50;
+                searchResults = top50; 
                 return;
             }
             else
