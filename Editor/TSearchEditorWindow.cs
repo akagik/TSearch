@@ -488,48 +488,55 @@ namespace Room6.TSearch.Editor
             filterWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(keyword);
             filterExtension = System.IO.Path.GetExtension(keyword);
             hasExtension = filterExtension.Length > 0;
-            
+
             if (currentTabName == "Assets")
             {
                 // 1. キャッシュ済み GUID リストを取得
                 var targetGuids = data.GetCachedGuidsFilteredByFolder(folderPath);
 
-                // 2. 文字列フィルタなどで絞り込み
-                //    ここはメインスレッドで行うか、部分的に並列化してもOK
-                List<string> matchedGuids = new List<string>();
+                // 2. アセット名の部分一致チェックを並列化
+                var matchedGuids = targetGuids
+                    .AsParallel()
+                    .Where(guid =>
+                    {
+                        string path = data.GetAssetPathFromGuid(guid);
+                        string fileNameWithExt = Path.GetFileName(path);
 
-                // --- 並列化したい場合の例 (注意: UnityEditor API に触れない範囲に限る) ---
-                //   GUID -> Path の取得はキャッシュ済みのためここは単なる Dictionary アクセス。
-                //   文字列比較のみ行うならスレッドセーフ。
-                var parallelQuery = targetGuids.AsParallel().Where(guid =>
-                {
-                    // パスをキャッシュから取得
-                    string path = data.GetAssetPathFromGuid(guid);
-                    string fileNameWithExt = Path.GetFileName(path);
+                        bool passSubsequence = searchResultFilter2.Filter(
+                            fileNameWithExt,
+                            filterWithoutExtension,
+                            ignoreCase
+                        );
 
-                    bool passSubsequence = searchResultFilter2.Filter(fileNameWithExt, filterWithoutExtension, ignoreCase);
+                        bool passExtension = !hasExtension ||
+                                             fileNameWithExt.EndsWith(
+                                                 filterExtension,
+                                                 ignoreCase
+                                                     ? StringComparison.OrdinalIgnoreCase
+                                                     : StringComparison.Ordinal
+                                             );
 
-                    // 拡張子指定がある場合のチェック
-                    bool passExtension = !hasExtension || fileNameWithExt.EndsWith(filterExtension, ignoreCase
-                        ? StringComparison.OrdinalIgnoreCase
-                        : StringComparison.Ordinal);
+                        return passSubsequence && passExtension;
+                    })
+                    .ToList();
 
-                    return passSubsequence && passExtension;
-                });
+                // 3. SearchResult の生成 ＋ priority 計算も並列化
+                //   ※ SearchResult や CalculatePriority の内部で UnityEditor API を呼んでいないことが前提
+                var allResults = matchedGuids
+                    .AsParallel()
+                    .Select(guid =>
+                    {
+                        var sr = new SearchResult(data, guid, ignoreCase);
+                        sr.CalculatePriority(priorityCalculator, filterWithoutExtension);
+                        return sr;
+                    })
+                    .ToList();
 
-                matchedGuids = parallelQuery.ToList();
+                // 4. 並べ替え & 上位 50 件を抽出 (必要であればここも PLINQ で行ってもOK)
+                var sorted = allResults
+                    .OrderByDescending(static x => x.priority)
+                    .ToList();
 
-                // 3. 絞り込んだものだけ SearchResult 化して、プライオリティ計算
-                //    (SearchResult の中でアセットタイプを取得したりする場合はメインスレッドで)
-                var allResults = matchedGuids.Select(guid =>
-                {
-                    var sr = new SearchResult(guid, ignoreCase);
-                    sr.CalculatePriority(priorityCalculator, filterWithoutExtension);
-                    return sr;
-                });
-
-                // 4. 並べ替え & 50件切り出し
-                var sorted = allResults.OrderByDescending(x => x.priority).ToList();
                 totalLength = sorted.Count;
                 filteredResult = sorted.Take(50).ToList();
                 searchResults = sorted;

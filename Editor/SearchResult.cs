@@ -106,13 +106,13 @@ namespace Room6.TSearch.Editor
             priority = -1;
         }
 
-        public SearchResult(string guid, bool ignoreCase)
+        public SearchResult(TSearchData data, string guid, bool ignoreCase)
         {
             this.resultType = ResultType.Assets;
             this.guid = guid;
             this.ignoreCase = ignoreCase;
 
-            assetPath = AssetDatabase.GUIDToAssetPath(guid);
+            assetPath = data.GetAssetPathFromGuid(guid);
             fileNameWithExt = Path.GetFileName(assetPath);
             fileName = Path.GetFileNameWithoutExtension(assetPath);
             priority = -1;
