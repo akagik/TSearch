@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEditor;
@@ -489,60 +488,101 @@ namespace Room6.TSearch.Editor
             filterWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(keyword);
             filterExtension = System.IO.Path.GetExtension(keyword);
             hasExtension = filterExtension.Length > 0;
-
-            List<SearchResult> allResults = new List<SearchResult>();
-
-            switch (currentTabName)
+            
+            if (currentTabName == "Assets")
             {
-                case "MenuCommand":
-                    var menuOnly = data.allMenuCommands
-                        .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
-                    menuOnly = Filter(menuOnly);
-                    allResults.AddRange(menuOnly);
-                    break;
+                // 1. キャッシュ済み GUID リストを取得
+                var targetGuids = data.GetCachedGuidsFilteredByFolder(folderPath);
 
-                case "Hierarchy":
-                    var hierarchyOnly = Object.FindObjectsOfType<GameObject>()
-                        .Select(go => SearchResult.CreateHierarchyResult(go, ignoreCase));
-                    hierarchyOnly = Filter(hierarchyOnly);
-                    allResults.AddRange(hierarchyOnly);
-                    break;
+                // 2. 文字列フィルタなどで絞り込み
+                //    ここはメインスレッドで行うか、部分的に並列化してもOK
+                List<string> matchedGuids = new List<string>();
 
-                case "TextInHierarchy":
-                    var textOnly = Object.FindObjectsOfType<GameObject>()
-                        .Select(go => SearchResult.CreateTextInHierarchyResult(go, ignoreCase));
-                    textOnly = Filter(textOnly);
-                    allResults.AddRange(textOnly);
-                    break;
-                case "Assets":
-                    // フォルダ指定を考慮。もし folderPath が null や空ならデフォルトで "Assets"
-                    string[] targetFolders = new[] { string.IsNullOrEmpty(folderPath) ? "Assets" : folderPath };
-                    var assetsOnly = AssetDatabase.FindAssets("", targetFolders)
-                        .Select(guid => new SearchResult(guid, ignoreCase));
-                    assetsOnly = Filter(assetsOnly);
-                    allResults.AddRange(assetsOnly);
-                    break;
-                case "History":
-                    var hist = data.history
-                        .Where(x => x != null && FilterSingle(x))
-                        .ToList();
-                    totalLength = hist.Count;
-                    filteredResult = hist.Take(50).ToList();
-                    searchResults = filteredResult;
-                    return;
+                // --- 並列化したい場合の例 (注意: UnityEditor API に触れない範囲に限る) ---
+                //   GUID -> Path の取得はキャッシュ済みのためここは単なる Dictionary アクセス。
+                //   文字列比較のみ行うならスレッドセーフ。
+                var parallelQuery = targetGuids.AsParallel().Where(guid =>
+                {
+                    // パスをキャッシュから取得
+                    string path = data.GetAssetPathFromGuid(guid);
+                    string fileNameWithExt = Path.GetFileName(path);
+
+                    bool passSubsequence = searchResultFilter2.Filter(fileNameWithExt, filterWithoutExtension, ignoreCase);
+
+                    // 拡張子指定がある場合のチェック
+                    bool passExtension = !hasExtension || fileNameWithExt.EndsWith(filterExtension, ignoreCase
+                        ? StringComparison.OrdinalIgnoreCase
+                        : StringComparison.Ordinal);
+
+                    return passSubsequence && passExtension;
+                });
+
+                matchedGuids = parallelQuery.ToList();
+
+                // 3. 絞り込んだものだけ SearchResult 化して、プライオリティ計算
+                //    (SearchResult の中でアセットタイプを取得したりする場合はメインスレッドで)
+                var allResults = matchedGuids.Select(guid =>
+                {
+                    var sr = new SearchResult(guid, ignoreCase);
+                    sr.CalculatePriority(priorityCalculator, filterWithoutExtension);
+                    return sr;
+                });
+
+                // 4. 並べ替え & 50件切り出し
+                var sorted = allResults.OrderByDescending(x => x.priority).ToList();
+                totalLength = sorted.Count;
+                filteredResult = sorted.Take(50).ToList();
+                searchResults = sorted;
+                return;
             }
+            else
+            {
+                List<SearchResult> allResults = new List<SearchResult>();
 
-            // 検索結果を優先度順に並べる
-            var sorted = allResults.OrderByDescending(x => x.priority);
-            searchResults = sorted;
+                switch (currentTabName)
+                {
+                    case "MenuCommand":
+                        var menuOnly = data.allMenuCommands
+                            .Select(menuPath => SearchResult.CreateCommandResult(menuPath, ignoreCase));
+                        menuOnly = Filter(menuOnly);
+                        allResults.AddRange(menuOnly);
+                        break;
 
-            var list = searchResults.ToList();
-            totalLength = list.Count;
+                    case "Hierarchy":
+                        var hierarchyOnly = Object.FindObjectsOfType<GameObject>()
+                            .Select(go => SearchResult.CreateHierarchyResult(go, ignoreCase));
+                        hierarchyOnly = Filter(hierarchyOnly);
+                        allResults.AddRange(hierarchyOnly);
+                        break;
 
-            // 先頭50件のみ表示
-            filteredResult = list.Take(50).ToList();
+                    case "TextInHierarchy":
+                        var textOnly = Object.FindObjectsOfType<GameObject>()
+                            .Select(go => SearchResult.CreateTextInHierarchyResult(go, ignoreCase));
+                        textOnly = Filter(textOnly);
+                        allResults.AddRange(textOnly);
+                        break;
+                    case "History":
+                        var hist = data.history
+                            .Where(x => x != null && FilterSingle(x))
+                            .ToList();
+                        totalLength = hist.Count;
+                        filteredResult = hist.Take(50).ToList();
+                        searchResults = filteredResult;
+                        return;
+                }
+
+                // 検索結果を優先度順に並べる
+                var sorted = allResults.OrderByDescending(x => x.priority);
+                searchResults = sorted;
+
+                var list = searchResults.ToList();
+                totalLength = list.Count;
+
+                // 先頭50件のみ表示
+                filteredResult = list.Take(50).ToList();
+            }
         }
-        
+
         /// <summary>
         /// 検索結果フィルタ
         /// </summary>

@@ -2,10 +2,8 @@ namespace Room6.TSearch.Editor
 {
     public class SubsequenceFilter : SearchFilter
     {
-        public override bool Filter(SearchResult result, string searchFilter)
+        public override bool Filter(string name, string searchFilter, bool ignoreCase)
         {
-            string name = result.fileName;
-            
             if (name.Length < searchFilter.Length)
             {
                 return false;
@@ -16,7 +14,7 @@ namespace Room6.TSearch.Editor
 
             while (i < searchFilter.Length && j < name.Length)
             {
-                if (result.ignoreCase)
+                if (ignoreCase)
                 {
                     if (TSearchUtils.AreCharsEqualIgnoreCase(searchFilter[i], name[j]))
                     {
@@ -35,6 +33,12 @@ namespace Room6.TSearch.Editor
             }
 
             return i == searchFilter.Length;
+        }
+
+        public override bool Filter(SearchResult result, string searchFilter)
+        {
+            string name = result.fileName;
+            return Filter(name, searchFilter, result.ignoreCase);
         }
     }
 }
