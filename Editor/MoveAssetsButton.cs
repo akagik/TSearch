@@ -58,7 +58,7 @@ namespace Room6.TSearch.Editor
             var dstPathList = new System.Text.StringBuilder();
             dstPathList.Append(_dstPath);
             
-            return $"Move {srcPathList}to <color=blue>{dstPathList}</color> (Total: {totalAssetCount} asset(s)) ";
+            return $"Move {srcPathList}to <color=#ADD8E6>{dstPathList}</color> (Total: {totalAssetCount} asset(s)) ";
         }
 
         public void OnGUI(TSearchController controller, TSearchEditorWindow window)

@@ -95,7 +95,7 @@ namespace Room6.TSearch.Editor
                     // 対象がフォルダの場合のみ
                     if (result.IsDirectory)
                     {
-                        Debug.Log("Ctrl+M: " + MoveAssetsButton.GetMessage(result.parentDirPath), result.asset);
+                        Debug.Log("Ctrl+M: " + MoveAssetsButton.GetMessage(result.parentDirPath));
                         // プロジェクトウィンドウで選択中のオブジェクトをそのフォルダへ移動
                         controller.MoveTo(result, Selection.objects);
                         // 移動後、対象フォルダを Ping する
