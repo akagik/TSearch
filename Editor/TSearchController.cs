@@ -20,6 +20,7 @@ namespace Room6.TSearch.Editor
         public List<SearchResult> filteredResult = new(); // 表示用にフィルタされた結果
         public int totalLength;
         public Priority priorityCalculator = new SimplePriority();
+        // ここでサブシーケンス検索を行うためのFilterを利用
         public SearchFilter searchResultFilter1 = new SimpleLengthFilter();
         public SearchFilter searchResultFilter2 = new SubsequenceFilter();
         public SearchResult activeResult { get; protected set; }
@@ -235,84 +236,128 @@ namespace Room6.TSearch.Editor
             filteredResult.Clear();
 
             string currentTabName = TabNames[data.selectedTab];
-            (string folderPath, string keyword) = data.ParseFullSearchFilter();
+            (string folderPath, string leftover) = data.ParseFullSearchFilter();
 
-            // ここで、TSearchData.instance.searchFilter にキーワードのみを保存してもOK
-            data.searchFilter = keyword;
-
-            // フィルタ用の文字列が短すぎる場合 (必要に応じて制限)
-            if (keyword.Length < 2 && currentTabName != "History")
-            {
-                searchResults = Enumerable.Empty<SearchResult>();
-                totalLength = 0;
-                return;
-            }
-
-            ignoreCase = !keyword.Any(char.IsUpper);
-            filterWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(keyword);
-            filterExtension = System.IO.Path.GetExtension(keyword);
-            hasExtension = filterExtension.Length > 0;
+            // ここで leftover を data.searchFilter に代入（タブ切り替えなどで使う可能性があるため）
+            data.searchFilter = leftover;
 
             if (currentTabName == "Assets")
             {
-                // 1. キャッシュ済み GUID リストを取得
+                // スペース区切りで入力された leftover をトークン分割
+                string[] tokens = leftover
+                    .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                // キーワード入力が無い場合（in:◯◯だけ）なら結果ゼロ
+                if (tokens.Length == 0)
+                {
+                    searchResults = Enumerable.Empty<SearchResult>();
+                    totalLength = 0;
+                    return;
+                }
+
+                // 最後のトークンだけファイル名検索に使う
+                string fileNameKeyword = tokens[^1];
+                // 残りのトークンはフォルダ名検索に使う
+                string[] folderNameKeywords = tokens.Length > 1
+                    ? tokens[..^1]
+                    : Array.Empty<string>();
+
+                // 大文字/小文字無視フラグ
+                ignoreCase = !fileNameKeyword.Any(char.IsUpper)
+                             && !folderNameKeywords.Any(static k => k.Any(char.IsUpper));
+
+                // 拡張子関連の抽出
+                filterWithoutExtension = Path.GetFileNameWithoutExtension(fileNameKeyword);
+                filterExtension = Path.GetExtension(fileNameKeyword);
+                hasExtension = filterExtension.Length > 0;
+
+                // ベースフォルダで絞り込み
                 var targetGuids = data.GetCachedGuidsFilteredByFolder(folderPath);
 
-                // 2. アセット名の部分一致チェックを並列化
+                // フィルタリング開始（並列）
                 var matchedGuids = targetGuids
                     .AsParallel()
                     .Where(guid =>
                     {
-                        string path = data.GetAssetPathFromGuid(guid);
-                        string fileNameWithExt = Path.GetFileName(path);
-                        string fileNameWithoutExt = Path.GetFileNameWithoutExtension(path);
+                        string assetPath = data.GetAssetPathFromGuid(guid);
+                        string dirPart = Path.GetDirectoryName(assetPath)
+                            ?.Replace('\\', '/')
+                            ?? "";
+                        string fileNameWithExt = Path.GetFileName(assetPath);
 
-                        bool passSubsequence = searchResultFilter2.Filter(
-                            fileNameWithoutExt,
-                            filterWithoutExtension,
-                            ignoreCase
-                        );
+                        // ◆◆ フォルダ名サブシーケンスマッチ ◆◆
+                        //    folderNameKeywords の各トークンごとに dirPart にサブシーケンスマッチするかを確認
+                        foreach (var folderKey in folderNameKeywords)
+                        {
+                            if (!searchResultFilter2.Filter(dirPart, folderKey, ignoreCase))
+                            {
+                                return false;
+                            }
+                        }
 
-                        bool passExtension = !hasExtension ||
-                                             fileNameWithExt.EndsWith(
-                                                 filterExtension,
-                                                 ignoreCase
-                                                     ? StringComparison.OrdinalIgnoreCase
-                                                     : StringComparison.Ordinal
-                                             );
+                        // ◆◆ ファイル名サブシーケンスマッチ ◆◆
+                        // 1) 拡張子を除いた実ファイル名部分のサブシーケンスマッチ
+                        string justFileName = Path.GetFileNameWithoutExtension(fileNameWithExt);
+                        if (!searchResultFilter2.Filter(justFileName, filterWithoutExtension, ignoreCase))
+                        {
+                            return false;
+                        }
 
-                        return passSubsequence && passExtension;
+                        // 2) 拡張子があれば EndsWith で判定
+                        if (hasExtension)
+                        {
+                            if (!fileNameWithExt.EndsWith(filterExtension,
+                                ignoreCase ? StringComparison.OrdinalIgnoreCase
+                                           : StringComparison.Ordinal))
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
                     })
                     .ToList();
 
-                // 3. SearchResult の生成 ＋ priority 計算も並列化
-                //   ※ SearchResult や CalculatePriority の内部で UnityEditor API を呼んでいないことが前提
+                // SearchResult 生成＋priority算出
                 var allResults = matchedGuids
                     .AsParallel()
                     .Select(guid =>
                     {
                         var sr = new SearchResult(data, guid, ignoreCase);
-                        sr.CalculatePriority(priorityCalculator, filterWithoutExtension);
+                        // Priority計算は最後のキーワード(=ファイル名キーワード)をベースに行うことが多い
+                        sr.CalculatePriority(priorityCalculator, fileNameKeyword);
                         return sr;
                     })
                     .ToList();
 
-                // 4. 並べ替え & 上位 50 件を抽出 (必要であればここも PLINQ で行ってもOK)
-                totalLength = allResults.Count(); // 全件数を計算しておく
+                // 並べ替え + 上位50件
+                totalLength = allResults.Count;
                 var top50 = allResults
-                    .AsParallel()
-                    .OrderByDescending(static x => x.priority)
+                    .OrderByDescending(x => x.priority)
                     .Take(50)
                     .ToList();
 
-                totalLength = allResults.Count(); // 全件数を計算しておく
                 filteredResult = top50;
-                searchResults = top50; 
+                searchResults = top50;
                 return;
             }
             else
             {
+                // 他タブ(Hierarchy, TextInHierarchy, MenuCommand, History)は従来の流れ
                 List<SearchResult> allResults = new List<SearchResult>();
+
+                // History以外はフィルタが短すぎると結果ゼロに
+                if (currentTabName != "History" && leftover.Length < 2)
+                {
+                    searchResults = Enumerable.Empty<SearchResult>();
+                    totalLength = 0;
+                    return;
+                }
+
+                ignoreCase = !leftover.Any(char.IsUpper);
+                filterWithoutExtension = Path.GetFileNameWithoutExtension(leftover);
+                filterExtension = Path.GetExtension(leftover);
+                hasExtension = filterExtension.Length > 0;
 
                 switch (currentTabName)
                 {
@@ -336,6 +381,7 @@ namespace Room6.TSearch.Editor
                         textOnly = Filter(textOnly);
                         allResults.AddRange(textOnly);
                         break;
+
                     case "History":
                         var hist = data.history
                             .Where(x => x != null && FilterSingle(x))
@@ -346,26 +392,29 @@ namespace Room6.TSearch.Editor
                         return;
                 }
 
-                // 検索結果を優先度順に並べる
+                // 並べ替え
                 var sorted = allResults.OrderByDescending(x => x.priority);
                 searchResults = sorted;
 
                 var list = searchResults.ToList();
                 totalLength = list.Count;
 
-                // 先頭50件のみ表示
+                // 先頭50件だけ
                 filteredResult = list.Take(50).ToList();
             }
         }
 
         /// <summary>
-        /// 検索結果フィルタ
+        /// (Hierarchy, MenuCommand用) 既存のサブシーケンスフィルタを使ったフィルタ処理
         /// </summary>
         private IEnumerable<SearchResult> Filter(IEnumerable<SearchResult> results)
         {
             var filtered = results
+                // サブシーケンスマッチ(filterWithoutExtension)を利用
                 .Where(x => searchResultFilter2.Filter(x, filterWithoutExtension))
-                .Where(x => !hasExtension || x.fileNameWithExt.EndsWith(filterExtension))
+                // 拡張子があるなら EndsWith 判定
+                .Where(x => !hasExtension || x.fileNameWithExt.EndsWith(filterExtension,
+                    ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                 .Select(x =>
                 {
                     x.CalculatePriority(priorityCalculator, filterWithoutExtension);
@@ -376,22 +425,26 @@ namespace Room6.TSearch.Editor
         }
 
         /// <summary>
-        /// 単一の SearchResult に対するフィルタ(History 用など)
+        /// 単一SearchResultへのフィルタ(History用)
         /// </summary>
         private bool FilterSingle(SearchResult result)
         {
-            if (data.searchFilter.Length < 2) return true; // フィルタしない
+            // Historyタブは length < 2 でもOKにする等、ここはご自由に
+            if (data.searchFilter.Length < 2 && data.selectedTab != 4) return true;
 
             if (!searchResultFilter1.Filter(result, filterWithoutExtension)) return false;
             if (!searchResultFilter2.Filter(result, filterWithoutExtension)) return false;
-            if (hasExtension && !result.fileNameWithExt.EndsWith(filterExtension)) return false;
+            if (hasExtension && !result.fileNameWithExt.EndsWith(filterExtension,
+                ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                return false;
+            }
 
             return true;
         }
 
         public void OnFullSearchFilterChanged(string newFullSearchFilter)
         {
-            // ここで新たな fullSearchFilter を受け取り、必要があればキャンセルして再検索
             data.fullSearchFilter = newFullSearchFilter;
             cancellationTokenSource?.Cancel();
             cancellationTokenSource = new CancellationTokenSource();
