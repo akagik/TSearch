@@ -122,7 +122,7 @@ namespace Room6.TSearch.Editor
             string remainder = (i < s.Length) ? s.Substring(i + 1) : ""; 
             return (folder, remainder);
         }
-        
+
         // ◆ 全アセットをキャッシュするためのリストや辞書
         [NonSerialized]
         private List<string> allGuids;
@@ -191,17 +191,53 @@ namespace Room6.TSearch.Editor
             {
                 return path;
             }
-            return AssetDatabase.GUIDToAssetPath(guid); // キャッシュに無い場合(基本的に無いはず)
+            return AssetDatabase.GUIDToAssetPath(guid);
         }
         
         /// <summary>
-        /// キャッシュをリセットして再構築させる
+        /// キャッシュ済みの場合、変更のあったアセットのみ更新する
         /// </summary>
-        public void ResetAssetCache()
+        public void UpdateAssetCache(IEnumerable<string> importedAssets, IEnumerable<string> deletedAssets, IEnumerable<string> movedAssets)
         {
-            isAssetCacheBuilt = false;
-            allGuids = null;
-            guidToPath = null;
+            // キャッシュがまだ構築されていなければ、初回構築する
+            if (!isAssetCacheBuilt)
+            {
+                BuildAssetCacheIfNeeded();
+                return;
+            }
+
+            // インポートされたアセットと移動先のアセットについて更新
+            foreach (string path in importedAssets.Concat(movedAssets))
+            {
+                if (string.IsNullOrEmpty(path))
+                    continue;
+
+                string guid = AssetDatabase.AssetPathToGUID(path);
+                if (!string.IsNullOrEmpty(guid))
+                {
+                    // すでにキャッシュに存在していなければ追加
+                    if (!allGuids.Contains(guid))
+                    {
+                        allGuids.Add(guid);
+                    }
+                    // GUID → パスのマッピングを更新
+                    guidToPath[guid] = path;
+                }
+            }
+
+            // 削除されたアセットはキャッシュから削除
+            foreach (string path in deletedAssets)
+            {
+                // キャッシュ内でパスが一致するGUIDを探す
+                var guidsToRemove = guidToPath.Where(kvp => kvp.Value.Equals(path, StringComparison.OrdinalIgnoreCase))
+                                              .Select(kvp => kvp.Key)
+                                              .ToList();
+                foreach (string guid in guidsToRemove)
+                {
+                    guidToPath.Remove(guid);
+                    allGuids.Remove(guid);
+                }
+            }
         }
     }
 }
