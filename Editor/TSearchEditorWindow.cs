@@ -37,7 +37,7 @@ namespace Room6.TSearch.Editor
                 }
             }
 
-            // Enter押下 (Return押下) に対する処理
+// Enter押下 (Return押下) に対する処理
             if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return &&
                 controller.activeIndex >= 0)
             {
@@ -55,6 +55,8 @@ namespace Room6.TSearch.Editor
                         // ◆ Shift + Enter の場合
                         // ファイルを開かず History に追加だけする
                         controller.JumpToAsset(result);
+                        // 選択状態にする
+                        Selection.activeObject = result.asset;
                         controller.AddHistory(result);
                         CheckClose();
                     }
@@ -81,7 +83,30 @@ namespace Room6.TSearch.Editor
                 controller.OnActiveMoved(Event.current.keyCode == KeyCode.UpArrow);
                 Event.current.Use();
             }
-
+            
+            // --- ここで Ctrl+M のキー入力を検出してフォルダ移動を実行 ---
+            if (Event.current.type == EventType.KeyDown &&
+                Event.current.control &&
+                Event.current.keyCode == KeyCode.M)
+            {
+                if (controller.activeIndex >= 0)
+                {
+                    var result = controller.filteredResult[controller.activeIndex];
+                    // 対象がフォルダの場合のみ
+                    if (result.IsDirectory)
+                    {
+                        Debug.Log("Ctrl+M: " + MoveAssetsButton.GetMessage(result.parentDirPath), result.asset);
+                        // プロジェクトウィンドウで選択中のオブジェクトをそのフォルダへ移動
+                        controller.MoveTo(result, Selection.objects);
+                        // 移動後、対象フォルダを Ping する
+                        EditorGUIUtility.PingObject(MoveAssetsButton.GetSelectedObject());
+                        Event.current.Use();
+                        
+                        CheckClose();
+                    }
+                }
+            }
+            
             DrawSearchField();
             GUILayout.Space(5);
 

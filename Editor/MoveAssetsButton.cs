@@ -13,6 +13,53 @@ namespace Room6.TSearch.Editor
         {
             this.result = result;
         }
+        
+        public static Object GetSelectedObject()
+        {
+            if (Selection.objects.Length == 0)
+            {
+                return null;
+            }
+            
+            return Selection.objects[0];
+        }
+        
+        public static string GetMessage(string _dstPath)
+        {
+            var srcPathList = new System.Text.StringBuilder();
+            var totalAssetCount = Selection.objects.Length;
+
+            int loopCount = Mathf.Min(Selection.objects.Length, 10);
+            bool isTruncated = Selection.objects.Length > 10;
+
+            for (var i = 0; i < loopCount; i++)
+            {
+                var path = AssetDatabase.GetAssetPath(Selection.objects[i]);
+                string fileName = Path.GetFileName(path);
+                srcPathList.Append("\"");
+                srcPathList.Append(fileName);
+                srcPathList.Append("\"");
+                
+                if (i < loopCount - 1)
+                {
+                    srcPathList.Append(", ");
+                }
+                else
+                {
+                    srcPathList.Append(" ");
+                }
+            }
+
+            if (isTruncated)
+            {
+                srcPathList.Append(", ...");
+            }
+            
+            var dstPathList = new System.Text.StringBuilder();
+            dstPathList.Append(_dstPath);
+            
+            return $"Move {srcPathList}to <color=blue>{dstPathList}</color> (Total: {totalAssetCount} asset(s)) ";
+        }
 
         public void OnGUI(TSearchController controller, TSearchEditorWindow window)
         {

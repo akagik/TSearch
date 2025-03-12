@@ -82,6 +82,7 @@ namespace Room6.TSearch.Editor
 
             // 必要に応じて Ping
             EditorGUIUtility.PingObject(activeResult.asset);
+            Selection.activeObject = activeResult.asset;
         }
 
         public void ResetActive()
