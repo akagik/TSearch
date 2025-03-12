@@ -227,7 +227,7 @@ namespace Room6.TSearch.Editor
                 if (result.IsDirectory)
                 {
                     MoveAssetsButton moveBtn = new MoveAssetsButton(result);
-                    moveBtn.OnGUI(controller);
+                    moveBtn.OnGUI(controller, this);
                 }
             }
 
@@ -247,7 +247,7 @@ namespace Room6.TSearch.Editor
             GUILayout.EndHorizontal();
         }
 
-        private void CheckClose()
+        public void CheckClose()
         {
             if (!docked)
             {

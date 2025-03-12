@@ -14,7 +14,7 @@ namespace Room6.TSearch.Editor
             this.result = result;
         }
 
-        public void OnGUI(TSearchController controller)
+        public void OnGUI(TSearchController controller, TSearchEditorWindow window)
         {
             var pathList = new System.Text.StringBuilder();
             var maxLength = 40;
@@ -50,6 +50,7 @@ namespace Room6.TSearch.Editor
                 if (EditorUtility.DisplayDialog("Confirm", message, "OK", "Cancel"))
                 {
                     controller.MoveTo(result, Selection.objects);
+                    window.CheckClose();
                 }
             }
         }
