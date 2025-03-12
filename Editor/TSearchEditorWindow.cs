@@ -200,7 +200,7 @@ namespace Room6.TSearch.Editor
                     alignment = TextAnchor.MiddleRight
                 };
 
-                if (GUILayout.Button(result.shortenParentDirPath, rightAlignedLabel, GUILayout.Width(240)))
+                if (GUILayout.Button(result.shortenParentDirPath, rightAlignedLabel, GUILayout.Width(340)))
                 {
                     UnityEngine.Object parentFolder =
                         AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(result.parentDirPath);

@@ -12,7 +12,7 @@ namespace Room6.TSearch.Editor
     [System.Serializable]
     public class SearchResult
     {
-        private const int MaxDisplayFolderLength = 30;
+        private const int MaxDisplayFolderLength = 40;
 
         public readonly ResultType resultType;
         public readonly string assetPath;
