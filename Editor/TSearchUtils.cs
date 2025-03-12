@@ -9,6 +9,12 @@ namespace Room6.TSearch.Editor
     {
         public static Texture GetIconForType(SearchResult result)
         {
+            if (result == null)
+            {
+                Debug.LogError("result is null");
+                return null;
+            }
+            
             if (result.resultType == ResultType.MenuCommand)
             {
                 GUIContent linkIcon = EditorGUIUtility.IconContent("d__Popup");
@@ -18,6 +24,13 @@ namespace Room6.TSearch.Editor
             if (result.resultType == ResultType.Hierarchy)
             {
                 return EditorGUIUtility.ObjectContent(null, typeof(GameObject)).image;
+            }
+
+            // asset が null の場合は処理を中断
+            if (result.asset == null)
+            {
+                Debug.LogError("asset is null");
+                return null;
             }
 
             System.Type type = result.asset.GetType();
@@ -30,7 +43,6 @@ namespace Room6.TSearch.Editor
             {
                 var texture = result.asset as Texture2D;
                 return texture;
-                return EditorGUIUtility.ObjectContent(null, typeof(Texture2D)).image;
             }
             else if (type == typeof(AudioClip))
             {
@@ -134,6 +146,5 @@ namespace Room6.TSearch.Editor
 
             return outNames;
         }
-
     }
 }

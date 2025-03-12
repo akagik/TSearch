@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEngine;
 
 namespace Room6.TSearch.Editor
 {
@@ -190,6 +192,16 @@ namespace Room6.TSearch.Editor
                 return path;
             }
             return AssetDatabase.GUIDToAssetPath(guid); // キャッシュに無い場合(基本的に無いはず)
+        }
+        
+        /// <summary>
+        /// キャッシュをリセットして再構築させる
+        /// </summary>
+        public void ResetAssetCache()
+        {
+            isAssetCacheBuilt = false;
+            allGuids = null;
+            guidToPath = null;
         }
     }
 }

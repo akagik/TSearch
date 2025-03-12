@@ -30,7 +30,10 @@ namespace Room6.TSearch.Editor
             {
                 if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
                 {
-                    this.Close();
+                    // 即座に Close() を呼ばず、次のフレームに延期する
+                    EditorApplication.delayCall += Close;
+                    Event.current.Use();
+                    return;
                 }
             }
 
@@ -248,7 +251,8 @@ namespace Room6.TSearch.Editor
         {
             if (!docked)
             {
-                this.Close();
+                // ウィンドウを即座に閉じず、次のフレームに延期する
+                EditorApplication.delayCall += Close;
             }
         }
     }
