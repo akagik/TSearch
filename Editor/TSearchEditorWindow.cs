@@ -25,6 +25,7 @@ namespace Room6.TSearch.Editor
 
         private void OnGUI()
         {
+            // ウィンドウがドッキングしていないなら、Esc押下で閉じる処理
             if (!docked)
             {
                 if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
@@ -33,30 +34,46 @@ namespace Room6.TSearch.Editor
                 }
             }
 
+            // Enter押下 (Return押下) に対する処理
             if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return &&
                 controller.activeIndex >= 0)
             {
-                if (0 <= controller.activeIndex &&
-                    controller.activeIndex < controller.filteredResult.Count)
+                // activeIndex の範囲チェック
+                if (0 <= controller.activeIndex && controller.activeIndex < controller.filteredResult.Count)
                 {
                     var result = controller.filteredResult[controller.activeIndex];
+                    // alt 押下判定
                     bool alt = Event.current.alt;
+                    // 追加: shift 押下判定
+                    bool shift = Event.current.shift;
 
-                    if (alt)
+                    if (shift)
                     {
+                        // ◆ Shift + Enter の場合
+                        // ファイルを開かず History に追加だけする
+                        controller.JumpToAsset(result);
+                        controller.AddHistory(result);
+                        CheckClose();
+                    }
+                    else if (alt)
+                    {
+                        // ◆ Alt + Enter の場合
+                        // JumpToAsset(ただの Ping) だけ行う
                         controller.JumpToAsset(result);
                     }
                     else
                     {
+                        // ◆ 通常の Enter の場合
+                        // 実行 + ウィンドウを閉じる
                         controller.Execute(result);
                         CheckClose();
                     }
                 }
             }
 
-            // Handle up and down arrow keys for selecting active result
-            if (Event.current.type == EventType.KeyDown && (Event.current.keyCode == KeyCode.DownArrow ||
-                                                            Event.current.keyCode == KeyCode.UpArrow))
+            // ↑↓キー操作
+            if (Event.current.type == EventType.KeyDown &&
+               (Event.current.keyCode == KeyCode.DownArrow || Event.current.keyCode == KeyCode.UpArrow))
             {
                 controller.OnActiveMoved(Event.current.keyCode == KeyCode.UpArrow);
                 Event.current.Use();
@@ -65,12 +82,7 @@ namespace Room6.TSearch.Editor
             DrawSearchField();
             GUILayout.Space(5);
 
-            // if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return)
-            // {
-            //     GUI.FocusControl(null);
-            // }
-
-            // Detect Tab key press and cycle through tabs
+            // タブ切替 (Tabキー押下)
             if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Tab)
             {
                 scrollPosition = new Vector2(scrollPosition.x, 0);
@@ -129,7 +141,9 @@ namespace Room6.TSearch.Editor
         {
             GUILayout.BeginHorizontal();
             GUILayout.Space(10);
-            controller.data.selectedTab = GUILayout.Toolbar(controller.data.selectedTab, TSearchController.TabNames,
+            controller.data.selectedTab = GUILayout.Toolbar(
+                controller.data.selectedTab,
+                TSearchController.TabNames,
                 GUILayout.ExpandWidth(true));
             GUILayout.Space(10);
             GUILayout.EndHorizontal();
